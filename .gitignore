@@ -7,6 +7,7 @@ outputs/
 work_dirs/
 runs/
 checkpoints/
+environment/
 *.pth
 *.pt
 *.ckpt

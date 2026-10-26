@@ -26,7 +26,7 @@
 
 固定使用 PyTorch 2.1.2、torchvision 0.16.2、CUDA 11.8、CUDA Toolkit 11.8（含 `nvcc`）及 GCC/G++。CUDA 11.8 开发镜像配合 GCC/G++ 11 是建议起点。`nvidia-smi` 显示的 CUDA 版本是驱动支持上限，编译版本以 `nvcc --version` 为准。
 
-即使复用之前的 AutoDL 实例，也建议新建 `rs3mamba` Conda 环境。下面不会改动 SegFormer 的 Python 环境。不需要安装 MMCV、MMSegmentation、MONAI 或 Apex。
+即使复用之前的 AutoDL 实例，也建议使用独立 Conda 环境。为随系统盘镜像保存，环境明确放在 `/root/rs3mamba_env`，使用 `--prefix` 绕过可能指向数据盘的 `envs_dirs` 设置，并用 `--copy` 安装 Conda 包。下面不会改动 SegFormer 的 Python 环境。不需要安装 MMCV、MMSegmentation、MONAI 或 Apex。
 
 ```bash
 cd /root
@@ -37,13 +37,18 @@ nvidia-smi
 nvcc --version
 g++ --version
 
-conda create -n rs3mamba python=3.10 -y
-conda activate rs3mamba
-python -m pip install pip==24.3.1 setuptools==69.5.1 wheel==0.43.0
-python -m pip install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
-python -m pip install -r requirements.txt
-MAX_JOBS=4 python -m pip install causal-conv1d==1.1.1 --no-build-isolation --no-deps
-MAX_JOBS=4 python -m pip install mamba-ssm==1.1.1 --no-build-isolation --no-deps
+source /root/miniconda3/etc/profile.d/conda.sh
+# 首次创建；已有此目录时跳过创建，避免覆盖。
+if [ ! -e /root/rs3mamba_env ]; then
+  conda create --prefix /root/rs3mamba_env python=3.10 --copy -y
+fi
+conda activate /root/rs3mamba_env
+python -c "import sys; assert sys.prefix == '/root/rs3mamba_env', sys.prefix; print(sys.executable)"
+python -m pip install --no-cache-dir pip==24.3.1 setuptools==69.5.1 wheel==0.43.0
+python -m pip install --no-cache-dir torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
+python -m pip install --no-cache-dir -r requirements.txt
+MAX_JOBS=4 python -m pip install --no-cache-dir causal-conv1d==1.1.1 --no-build-isolation --no-deps
+MAX_JOBS=4 python -m pip install --no-cache-dir mamba-ssm==1.1.1 --no-build-isolation --no-deps
 python -m pip check
 ```
 
@@ -135,7 +140,7 @@ python train.py \
 
 ```bash
 tmux new -s rs3mamba
-conda activate rs3mamba
+conda activate /root/rs3mamba_env
 cd /root/RS3mamba
 python -u train.py --config configs/rs3mamba_gf1.yaml --data-root dataset --output-dir outputs/rs3mamba_gf1_s42
 ```
@@ -197,6 +202,48 @@ python predict.py \
 原版、模块 A、模块 B、A+B 应分别从相同初始预训练文件独立训练，固定数据划分、输入适配、训练配方及预算；新增模块使用自身初始化。重要结果补充多个随机种子。SWSL 与仅 ImageNet 预训练来源有差异，比较 SegFormer 时需明确记录。
 
 源代码更新使用 `git pull --ff-only origin main`。当前实验应记录其开始时的 Git 提交；更新代码后优先新建实验目录，避免混淆已完成的结果。数据、权重、输出、临时测试依赖均由 `.gitignore` 排除。
+
+## 8. 连同 AutoDL 镜像保存
+
+AutoDL 的「保存镜像」保存实例的系统盘；`/root/autodl-tmp` 数据盘和 `/root/autodl-fs` 等独立挂载不包含在系统盘镜像中。环境、源码、需要一并保留的数据及权重应实际位于系统盘：
+
+```text
+/root/rs3mamba_env/          # Python、PyTorch、已编译 Mamba 扩展
+/root/RS3mamba/             # 源码
+/root/RS3mamba/dataset/     # 自行上传的实际数据文件
+/root/RS3mamba/pretrain/    # 下载的初始权重
+/root/RS3mamba/outputs/     # 已保存的日志和训练 checkpoint
+```
+
+如果上述路径是指向数据盘的软链接，链接目标里的文件仍不会进入镜像。上传前后可通过 `readlink -f` 和 `df -h` 核对实际位置；系统盘空间不足时先在平台扩容系统盘，不将需要进镜像的环境迁到数据盘。
+
+在环境检查和试跑通过后，保存环境清单：
+
+```bash
+conda activate /root/rs3mamba_env
+cd /root/RS3mamba
+mkdir -p environment
+python -m pip freeze > environment/pip-freeze.txt
+conda env export --prefix /root/rs3mamba_env > environment/conda-environment.yml
+git rev-parse HEAD > environment/code-commit.txt
+python tools/check_environment.py --report-only --output environment/runtime.json
+readlink -f /root/rs3mamba_env /root/RS3mamba
+df -h /root /root/rs3mamba_env /root/RS3mamba
+sync
+```
+
+完成训练或确认 checkpoint 已落盘后，在 AutoDL 控制台**关机 → 更多操作 → 保存镜像**，等保存完成后在「我的镜像」确认。环境本身会随系统盘保存，不是仅依靠上述清单重装；清单用于记录版本。Git 忽略规则只影响推送 GitHub，不影响系统盘镜像。
+
+用此镜像创建实例后，在终端重新激活环境即可：
+
+```bash
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate /root/rs3mamba_env
+cd /root/RS3mamba
+python tools/check_environment.py
+```
+
+镜像保留文件和已安装扩展，不保留关机前仍在运行的进程。训练从 `checkpoints/last.pt` 恢复。平台规则参考 [系统盘/数据盘说明](https://www.autodl.com/docs/env/) 和 [镜像说明](https://www.autodl.com/docs/image/)。
 
 ## 本地验证及限制
 
