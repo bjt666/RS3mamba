@@ -50,6 +50,8 @@ python -m pip check
 
 源码编译可能需要数分钟。若 `nvcc` 不存在或版本不同，先修正 Toolkit，不要直接升级到最新 Mamba、PyTorch 或 Triton 来绕过报错。CUDA 扩展版本另存于 `requirements-cuda.txt`。
 
+CUDA 扩展采用 `--no-deps` 安装，其声明的 Python 依赖需先由 `requirements.txt` 补齐。旧版 causal-conv1d 1.1.1 还声明了 `buildtools`，清单已固定为 1.0.6；使用早期清单安装后若 `pip check` 提示缺少它，可运行 `python -m pip install buildtools==1.0.6`，再执行 `python -m pip check`。这里的 buildtools 是 Python 包，会连带安装其声明的工具库，无需重新安装 PyTorch 或 CUDA。
+
 如果已经按旧说明创建 `/root/rs3mamba_env`，且确认其中仅有这次安装的运行环境，可在上述基础环境检查通过后清理。先确认目标为该独立环境，再激活 base 并删除；源码、数据、权重应保留在 `/root/RS3mamba`，不放入待删除的环境目录：
 
 ```bash
@@ -261,6 +263,8 @@ python tools/check_environment.py
 2026-10-26 本地检查：20 项自动测试通过，覆盖数据与标签、归一化与指标、预训练加载、梯度累积、checkpoint/RNG 恢复，以及使用测试模型的训练→中断→续训→评估→预测流程。两套实际官方权重通过完整 SHA-256 校验，模型构建时 CNN 的 100/100、VMamba 的 205/205 个适用张量加载成功。模型加载测试中的 selective-scan 导入仅为测试隔离，禁止执行替代扫描；没有据此宣称完整模型的 CUDA 前向/反向通过。
 
 本地检查使用 Windows Python 3.10 / PyTorch 2.5.1；目标服务器固定版本为 Linux Python 3.10 / PyTorch 2.1.2+cu118，后者尚未在本机执行。数据检查确认 700/87/89 对、训练集前景约 4.84%，未发现跨划分完全相同的选定通道输入。没有将任何数据集或本地检查输出提交到 Git。
+
+2026-10-26 用户回传的服务器检查确认：RTX 3080 Ti 12 GB、Python 3.10.8、PyTorch 2.1.2+cu118、torchvision 0.16.2+cu118、Transformers 4.44.2、Mamba/causal-conv1d 1.1.1，CUDA Toolkit 11.8 与 G++ 11.3；所有列出的模块导入成功，真实 selective-scan CUDA 前向和反向通过。该次 `pip check` 另提示缺少 buildtools，已将其补入依赖清单；不能据此宣称完整模型和训练已经通过，仍需执行 `--model-smoke` 及短程训练。
 
 本地自动检查命令（已安装 PyTorch 和相关基础依赖时）：
 
