@@ -1,0 +1,4 @@
+# First install torch==2.1.2 / torchvision==0.16.2 with CUDA 11.8 and requirements.txt.
+# Then: MAX_JOBS=4 python -m pip install -r requirements-cuda.txt --no-build-isolation --no-deps
+causal-conv1d==1.1.1
+mamba-ssm==1.1.1

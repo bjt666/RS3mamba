@@ -1,0 +1,41 @@
+# Datasets, downloaded weights, experiment artifacts
+dataset/
+data/
+*dataset*/
+pretrain/
+outputs/
+work_dirs/
+runs/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.partial
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tif
+*.tiff
+*.npy
+*.npz
+
+# Local Python environments and QA dependencies
+.venv/
+venv/
+.test_deps/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.coverage
+
+# Editor/OS and local credentials
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.pem
+*.key

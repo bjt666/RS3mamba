@@ -1,0 +1,27 @@
+# Official model initialization and optimizer/schedule, adapted to the GF TIFF data.
+# Effective batch=10 approximates upstream physical batch=10; BatchNorm differs.
+data_root: dataset
+output_dir: null
+num_classes: 2
+input_channels: [3, 2, 1]
+input_bands: [NIR, R, G]
+pretrained: true
+cnn_checkpoint: pretrain/semi_weakly_supervised_resnet18-118f1556.pth
+vmamba_checkpoint: pretrain/vmamba_tiny_e292.pth
+epochs: 50
+batch_size: 2
+accumulation_steps: 5
+num_workers: 4
+seed: 42
+device: cuda
+amp: false
+optimizer: sgd
+scheduler: multistep
+learning_rate: 0.01
+momentum: 0.9
+weight_decay: 0.0005
+milestones: [25, 35, 45]
+gamma: 0.1
+loss: cross_entropy
+log_every: 20
+visualization_samples: 8

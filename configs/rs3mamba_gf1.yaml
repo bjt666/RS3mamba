@@ -1,0 +1,26 @@
+# Four-channel source TIFF order: Blue, Green, Red, NIR.
+# This is the GF-1 task adaptation; model structure follows the pinned upstream.
+data_root: dataset
+output_dir: null
+num_classes: 2
+input_channels: [3, 2, 1]
+input_bands: [NIR, R, G]
+pretrained: true
+cnn_checkpoint: pretrain/semi_weakly_supervised_resnet18-118f1556.pth
+vmamba_checkpoint: pretrain/vmamba_tiny_e292.pth
+
+epochs: 100
+batch_size: 4
+accumulation_steps: 2
+num_workers: 4
+seed: 42
+device: cuda
+amp: false
+optimizer: adamw
+scheduler: cosine
+encoder_lr: 0.00006
+decoder_lr: 0.0006
+weight_decay: 0.01
+loss: cross_entropy
+log_every: 20
+visualization_samples: 8

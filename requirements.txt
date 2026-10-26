@@ -1,0 +1,17 @@
+# Install the pinned CUDA-enabled torch/torchvision first; see README.md.
+# CUDA extensions are intentionally installed separately with --no-build-isolation.
+numpy==1.26.4
+tifffile==2024.9.20
+imagecodecs==2024.9.22
+Pillow==10.4.0
+matplotlib==3.9.2
+PyYAML==6.0.2
+tqdm==4.66.5
+timm==0.6.13
+einops==0.7.0
+transformers==4.38.2
+huggingface-hub==0.25.2
+safetensors==0.4.5
+packaging==24.1
+ninja==1.11.1.1
+triton==2.1.0; sys_platform == "linux"
