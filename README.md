@@ -26,7 +26,7 @@
 
 固定使用 PyTorch 2.1.2、torchvision 0.16.2、CUDA 11.8、CUDA Toolkit 11.8（含 `nvcc`）及 GCC/G++。CUDA 11.8 开发镜像配合 GCC/G++ 11 是建议起点。`nvidia-smi` 显示的 CUDA 版本是驱动支持上限，编译版本以 `nvcc --version` 为准。
 
-即使复用之前的 AutoDL 实例，也建议使用独立 Conda 环境。为随系统盘镜像保存，环境明确放在 `/root/rs3mamba_env`，使用 `--prefix` 绕过可能指向数据盘的 `envs_dirs` 设置，并用 `--copy` 安装 Conda 包。下面不会改动 SegFormer 的 Python 环境。不需要安装 MMCV、MMSegmentation、MONAI 或 Apex。
+优先复用 AutoDL 镜像自带的 Python 和 PyTorch。已有服务器已确认 `/root/miniconda3/bin/python` 为 Python 3.10.8、PyTorch 2.1.2+cu118、torchvision 0.16.2+cu118，且 CUDA 可用，与 SegFormer 使用的基础环境一致。无需新建环境、重装 PyTorch，或固定升级 pip/setuptools/wheel。项目依赖会安装到当前 Python 中；安装前记录已有版本。Transformers 固定为 SegFormer 使用的 4.44.2，避免将其降级。不需要安装 MMCV、MMSegmentation、MONAI 或 Apex。
 
 ```bash
 cd /root
@@ -38,14 +38,10 @@ nvcc --version
 g++ --version
 
 source /root/miniconda3/etc/profile.d/conda.sh
-# 首次创建；已有此目录时跳过创建，避免覆盖。
-if [ ! -e /root/rs3mamba_env ]; then
-  conda create --prefix /root/rs3mamba_env python=3.10 --copy -y
-fi
-conda activate /root/rs3mamba_env
-python -c "import sys; assert sys.prefix == '/root/rs3mamba_env', sys.prefix; print(sys.executable)"
-python -m pip install --no-cache-dir pip==24.3.1 setuptools==69.5.1 wheel==0.43.0
-python -m pip install --no-cache-dir torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
+conda activate base
+python -c "import sys, torch, torchvision; assert sys.prefix == '/root/miniconda3', sys.prefix; assert sys.version_info[:2] == (3, 10); assert torch.__version__.split('+')[0] == '2.1.2', torch.__version__; assert torchvision.__version__.split('+')[0] == '0.16.2', torchvision.__version__; assert torch.version.cuda == '11.8', torch.version.cuda; assert torch.cuda.is_available(); print(sys.executable, torch.__version__, torchvision.__version__, torch.cuda.get_device_name(0))"
+mkdir -p environment
+python -m pip freeze > environment/before-rs3mamba.txt
 python -m pip install --no-cache-dir -r requirements.txt
 MAX_JOBS=4 python -m pip install --no-cache-dir causal-conv1d==1.1.1 --no-build-isolation --no-deps
 MAX_JOBS=4 python -m pip install --no-cache-dir mamba-ssm==1.1.1 --no-build-isolation --no-deps
@@ -53,6 +49,17 @@ python -m pip check
 ```
 
 源码编译可能需要数分钟。若 `nvcc` 不存在或版本不同，先修正 Toolkit，不要直接升级到最新 Mamba、PyTorch 或 Triton 来绕过报错。CUDA 扩展版本另存于 `requirements-cuda.txt`。
+
+如果已经按旧说明创建 `/root/rs3mamba_env`，且确认其中仅有这次安装的运行环境，可在上述基础环境检查通过后清理。先确认目标为该独立环境，再激活 base 并删除；源码、数据、权重应保留在 `/root/RS3mamba`，不放入待删除的环境目录：
+
+```bash
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate base
+conda env list
+conda env remove --prefix /root/rs3mamba_env -y
+```
+
+然后在 base 中执行上面的项目依赖和 CUDA 扩展安装命令。新环境中的第二套 Python、PyTorch 及相关库会随环境一起移除，原镜像的 PyTorch 可继续使用。已有新环境也可以保留使用；`pip check` 无冲突不代表 CUDA 扩展已经通过实际计算检查。
 
 GitHub 连接超时时，可在支持此功能的 AutoDL 实例终端执行 `source /etc/network_turbo` 后重试。如果实例没有该文件，按平台网络说明配置。首次权重下载需要网络；训练、续训、评估和预测均使用本地文件，不在内部自动访问 Hugging Face。
 
@@ -140,7 +147,8 @@ python train.py \
 
 ```bash
 tmux new -s rs3mamba
-conda activate /root/rs3mamba_env
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate base
 cd /root/RS3mamba
 python -u train.py --config configs/rs3mamba_gf1.yaml --data-root dataset --output-dir outputs/rs3mamba_gf1_s42
 ```
@@ -208,7 +216,7 @@ python predict.py \
 AutoDL 的「保存镜像」保存实例的系统盘；`/root/autodl-tmp` 数据盘和 `/root/autodl-fs` 等独立挂载不包含在系统盘镜像中。环境、源码、需要一并保留的数据及权重应实际位于系统盘：
 
 ```text
-/root/rs3mamba_env/          # Python、PyTorch、已编译 Mamba 扩展
+/root/miniconda3/           # 复用镜像自带 Python、PyTorch，并补装 Mamba 扩展
 /root/RS3mamba/             # 源码
 /root/RS3mamba/dataset/     # 自行上传的实际数据文件
 /root/RS3mamba/pretrain/    # 下载的初始权重
@@ -220,15 +228,16 @@ AutoDL 的「保存镜像」保存实例的系统盘；`/root/autodl-tmp` 数据
 在环境检查和试跑通过后，保存环境清单：
 
 ```bash
-conda activate /root/rs3mamba_env
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate base
 cd /root/RS3mamba
 mkdir -p environment
 python -m pip freeze > environment/pip-freeze.txt
-conda env export --prefix /root/rs3mamba_env > environment/conda-environment.yml
+conda env export --prefix /root/miniconda3 > environment/conda-environment.yml
 git rev-parse HEAD > environment/code-commit.txt
 python tools/check_environment.py --report-only --output environment/runtime.json
-readlink -f /root/rs3mamba_env /root/RS3mamba
-df -h /root /root/rs3mamba_env /root/RS3mamba
+readlink -f /root/miniconda3 /root/RS3mamba
+df -h /root /root/miniconda3 /root/RS3mamba
 sync
 ```
 
@@ -238,7 +247,7 @@ sync
 
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
-conda activate /root/rs3mamba_env
+conda activate base
 cd /root/RS3mamba
 python tools/check_environment.py
 ```

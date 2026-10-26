@@ -1,4 +1,4 @@
-# Install the pinned CUDA-enabled torch/torchvision first; see README.md.
+# Reuse the image's torch 2.1.2+cu118 / torchvision 0.16.2+cu118; see README.md.
 # CUDA extensions are intentionally installed separately with --no-build-isolation.
 numpy==1.26.4
 tifffile==2024.9.20
@@ -9,7 +9,8 @@ PyYAML==6.0.2
 tqdm==4.66.5
 timm==0.6.13
 einops==0.7.0
-transformers==4.38.2
+# Match the recorded SegFormer environment when sharing the image's Python.
+transformers==4.44.2
 huggingface-hub==0.25.2
 safetensors==0.4.5
 packaging==24.1
